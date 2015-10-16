@@ -1,0 +1,79 @@
+#!/usr/bin/python
+import MySQLdb
+import sys
+import getopt
+import socket
+
+hosts     = ['localhost','10.0.1.3','10.0.0.3']
+port      = 3306
+verbose      = False
+dontprompt   = False
+
+def terminate():
+    print "wqdel: wqdel [-v|--verbose -y|--yes} <queuename>"
+    sys.exit(1)
+
+def conn_sql():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    for host in hosts:
+        try:
+            s.connect((host, port))
+            s.shutdown(2)
+            return(host)
+        except:
+            pass
+    print "wqdel: Cannot connect to sql server, contact your DevOps."
+    terminate()
+
+
+options, remainder = getopt.getopt(sys.argv[1:], 'vy', ['verbose','yes'])
+
+for opt, arg in options:
+    if opt in ('-v', '--verbose'):
+        verbose = True
+    elif opt in ('-y','--yes'):
+        dontprompt  = True
+
+if verbose:
+    print 'OPTIONS   :', options
+    print 'ARGV      :', sys.argv[1:]
+    print 'VERBOSE   :', verbose
+    print 'YES       :', dontprompt
+    print 'REMAINING :', remainder
+
+if (len(sys.argv) < 2):
+    print "wqdel: to few arguments."
+    terminate()
+
+wql_name = remainder[0]
+
+try:
+    host=conn_sql()
+    db = MySQLdb.connect(host,"wq","wq","wq" )
+except:
+    print "wqdel: Failed to connect to sql server, host(%s)" % (host)
+    sys.exit(1)
+
+cursor = db.cursor()
+sql = "DELETE FROM wql WHERE wql_name = '%s';" % (wql_name)
+logit = "INSERT INTO wqlog(wqlog_name, wqlog_action, wqlog_datetime, wqlog_options) VALUES ('%s','%s',now(),'%s');" % (wql_name,'delete','')
+
+try:
+   if dontprompt:
+      cursor.execute(sql)
+      cursor.execute(logit)
+      db.commit()
+   else:
+      reply = raw_input("Delete queue ( "+wql_name+" ) ? [y/[n]] ")
+      if reply=='y':
+         cursor.execute(sql)
+         cursor.execute(logit)
+         db.commit()
+      else:
+         print "wqdel: Aborting delete of queue (%s)" % (wql_name)
+except:
+   db.rollback()
+   print "wqdel: this queue (%s) does not exist, no action." % (wql_name)
+
+db.close()
+sys.exit(0)

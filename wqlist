@@ -1,0 +1,98 @@
+#!/usr/bin/python
+import MySQLdb
+import sys
+import getopt
+import socket
+
+verbose   = False
+log       = False
+hosts     = ['localhost','10.0.1.3','10.0.0.3']
+port      = 3306
+
+def terminate():
+    print "wqlist: wqlist [--log] <queuename | all>"
+    sys.exit(1)
+
+def conn_sql():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    for host in hosts:
+        try:
+            s.connect((host, port))
+            s.shutdown(2)
+            return(host)
+        except:
+            pass
+    print "Cannot connect to sql server, contact your DevOps."
+    terminate()
+
+try:
+   options, remainder = getopt.getopt(sys.argv[1:], 'vl', ['verbose','log'])
+except getopt.GetoptError as err:
+   print str(err) # will print something like "option -a not recognized"
+   terminate()
+
+for opt, arg in options:
+    if opt in ('-v', '--verbose'):
+        verbose = True
+    elif opt in ('-l','--log'):
+        log  = True
+    else:
+        terminate()
+
+if verbose:
+    print 'OPTIONS   :', options
+    print 'ARGV      :', sys.argv[1:]
+    print 'VERBOSE   :', verbose
+    print 'LOG       :', log
+    print 'REMAINING :', remainder
+
+#terminate()
+#sys.exit(0)
+
+if (len(sys.argv) < 2):
+    terminate()
+
+wql_name = "all"
+if remainder:
+    wql_name = remainder[0]
+
+try:
+    host=conn_sql()
+    db = MySQLdb.connect(host,"wq","wq","wq" )
+except:
+    print "Failed to connect to sql server, host(%s)" % (host)
+    sys.exit(1)
+
+cursor = db.cursor()
+
+if log:
+    fmt='%20s %20s %20s %20s'
+    header = ["wqname","datetime","action","vars"]
+    if wql_name != "all":
+        sql = "SELECT wqlog_name, wqlog_datetime, wqlog_action, wqlog_options FROM wqlog WHERE wqlog_name = '%s' ORDER BY wqlog_name,wqlog_datetime;" % (wql_name)
+    else:
+        sql = "SELECT wqlog_name, wqlog_datetime, wqlog_action ,wqlog_options FROM wqlog ORDER BY wqlog_name,wqlog_datetime;"
+else:
+    fmt='%20s %20s %20s %20s %20s'
+    header = ["wqname","datetime","var1","var2","var3"]
+    if wql_name != "all":
+        sql = "SELECT wql_name, wq_datetime,  wq_var1,  wq_var2, wq_var3 FROM wql LEFT JOIN wq ON wql_id=wq_wql_id  WHERE  wql_name = '%s' ORDER BY wq_id;" % (wql_name)
+    else:
+        sql = "SELECT wql_name, wq_datetime,  wq_var1,  wq_var2, wq_var3 FROM wql LEFT JOIN wq ON wql_id=wq_wql_id ORDER BY wql_name, wq_id;"
+	
+if verbose: print sql
+
+try:
+   cursor.execute(sql)
+   db.commit()
+except:
+   print "wqnew: warning, this queue may exist (%s), no action." % (wql_name)
+   sys.exit(1)
+
+print fmt % tuple(header)
+#sys.exit(0)
+for row in cursor:
+   print fmt % tuple(row)
+
+db.close()
+sys.exit(0)

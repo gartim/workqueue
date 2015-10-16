@@ -1,0 +1,84 @@
+#!/usr/bin/python
+import MySQLdb
+import sys
+import getopt
+import socket
+
+hosts     = ['localhost','10.0.1.3','10.0.0.3']
+port      = 3306
+localhost = False
+verbose   = False
+var_names = ["wql_name", "wq_var1", "wq_var2", "wq_var3"]
+ 
+
+def terminate():
+    print "wqpush: wqpush [-v|--verbose] <queuename> <var1> [<var2> <var3>]"
+    sys.exit(1)
+
+def conn_sql():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    for host in hosts:
+        try:
+            s.connect((host, port))
+            s.shutdown(2)
+            return(host)
+        except:
+            pass
+    print "wqpush: Cannot connect to sql server, contact your DevOps."
+    terminate()
+
+options, remainder = getopt.getopt(sys.argv[1:], 'v', ['verbose'])
+
+for opt, arg in options:
+    if opt in ('-v', '--verbose'):
+        verbose = True
+
+if verbose:
+    print 'OPTIONS   :', options
+    print 'ARGV      :', sys.argv[1:]
+    print 'VERBOSE   :', verbose
+    print 'REMAINING :', remainder
+
+
+if (len(sys.argv) < 3):
+    print "wqpush: to few arguments."
+    terminate()
+
+i=0
+for name in var_names:
+    try:
+        globals()[name] = remainder[i]
+    except IndexError:
+        globals()[name] = ""
+    i += 1
+	
+if verbose:
+    print "|%s|%s|%s|%s|" % (wql_name, wq_var1, wq_var2, wq_var3)
+
+try:
+    host=conn_sql()
+    db = MySQLdb.connect(host,"wq","wq","wq" )
+except:
+    print "Failed to connect to sql server, host(%s)" % (host)
+    sys.exit(1)
+
+cursor = db.cursor()
+
+sql = "INSERT INTO wq (wq_wql_id, wq_var1, wq_var2, wq_var3, wq_datetime) " \
+      " SELECT wql_id, '%s', '%s','%s', now() FROM wql " \
+      " WHERE wql_name = '%s';" % (wq_var1,wq_var2,wq_var3,wql_name)
+options =  "|%s|%s|%s|" % (wq_var1, wq_var2, wq_var3)
+logit = "INSERT INTO wqlog(wqlog_name, wqlog_action, wqlog_datetime, wqlog_options) VALUES ('%s','%s',now(),'%s');" % (wql_name,'push',options)
+
+if verbose:
+   print sql
+   print logit
+try:
+   cursor.execute(sql)
+   cursor.execute(logit)
+   db.commit()
+except:
+   db.rollback()
+
+db.close()
+sys.exit(0)

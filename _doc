@@ -1,0 +1,41 @@
+Description:
+===========
+These project uses Python and MariaDB (MySql) to manage
+and process workQueues. It requires an Sql DB, could
+be ported to other engines.  
+
+Files:
+=====
+dbcreate1.sh		  Creates Database/tables
+_doc			  This doc
+wqadd			  create a workQueue
+wqdel			  delete a workQueue and all queued entries
+wqlist			  list a workQueue(s) or accounting log
+wqpop			  pop an entry off the workQueue
+wqpush			  push on the workQueue
+plink_example/example_files_create.sh
+			  example creating a bunch of file
+			  and pushing them on the workQueue.
+plink_example/example_files_process.sh
+			  example of a job popping off the
+                          workQueue and sleeping, waiting
+			  for more or 'end'.
+plink_example/example.map data for examples
+plink_example/example.ped data for examples
+
+todo:
+====
+
+mysql permissions:
+=================
+GRANT ALL ON wq.* TO wq@'10.0.0.%' IDENTIFIED BY '*****';
+GRANT ALL ON wq.* TO wq@'10.0.1.%' IDENTIFIED BY '*****';
+
+(Need port 3306 open for cross system support. If 
+ you open this port be on a DMZ network, behind a
+ firewall.)
+
+check commands:
+==============
+mysql -u wq --password="*****" -e 'select * from wq.wql'
+

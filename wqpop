@@ -1,0 +1,83 @@
+#!/usr/bin/python
+
+import MySQLdb
+import MySQLdb.cursors
+import sys
+import getopt
+import socket
+
+hosts     = ['localhost','10.0.1.3','10.0.0.3']
+port      = 3306
+verbose   = False
+
+def terminate():
+    print "wqpop: wqpop [-v|--verbose] <queuename> "
+    sys.exit(1)
+
+def conn_sql():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    for host in hosts:
+        try:
+            s.connect((host, port))
+            s.shutdown(2)
+            return(host)
+        except:
+            pass
+    print "wqpop: Cannot connect to sql server, contact your DevOps."
+    terminate()
+
+options, remainder = getopt.getopt(sys.argv[1:], 'v', ['verbose'])
+
+for opt, arg in options:
+    if opt in ('-v', '--verbose'):
+        verbose = True
+
+if verbose:
+    print 'OPTIONS   :', options
+    print 'ARGV      :', sys.argv[1:]
+    print 'VERBOSE   :', verbose
+    print 'REMAINING :', remainder
+
+if (len(sys.argv) < 2):
+    print "wqpop: to few arguments."
+    terminate()
+
+wql_name = remainder[0]
+
+
+try:
+    host=conn_sql()
+    db = MySQLdb.connect(host,"wq","wq","wq" )
+except:
+    print "Failed to connect to sql server, host(%s)" % (host)
+    sys.exit(1)
+
+cursor = db.cursor()
+
+sql = "SELECT wq_id, wq_var1, wq_var2, wq_var3 FROM wq LEFT JOIN " \
+      " wql ON wql_id=wq_wql_id" \
+      " WHERE wql_name = '%s' ORDER BY wq_id LIMIT 1;" % (wql_name)
+if verbose:
+    print sql
+try:
+    cursor.execute(sql)
+    row = cursor.fetchone()
+    if row:
+        options = "|%s|%s|%s|" % (row[1],row[2],row[3])
+        cursor.execute("DELETE from wq WHERE wq_id = %d;" % (row[0]))
+    else:
+        options = "empty wq, eowq"
+    logit = "INSERT INTO wqlog(wqlog_name, wqlog_action, wqlog_datetime, wqlog_options) VALUES ('%s','%s',now(),'%s');" % (wql_name,'pop',options)
+    cursor.execute(logit)
+    db.commit()
+except:
+    db.rollback()
+
+if row:
+   rtnstring = "%s\t%s\t%s" % (row[1],row[2],row[3])
+else:
+   rtnstring = "%s\t%s\t%s" % ("","","")
+
+db.close()
+print rtnstring
+sys.exit(0)
